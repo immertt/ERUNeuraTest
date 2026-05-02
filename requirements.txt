@@ -12,3 +12,8 @@ cognitive-complexity
 black
 isort
 coverage
+# LLM and Template Engines
+openai
+langchain
+pydantic
+jinja2
