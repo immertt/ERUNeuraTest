@@ -1,0 +1,35 @@
+{
+  "source_file": "src/postprocess/faulty_test_examples/calculator.py",
+  "test_file": "src/postprocess/faulty_test_examples/test_calculator.py",
+  "module_name": "calculator",
+  "target_class": "Calculator",
+  "available_imports": {
+    "classes": ["Calculator", "User"],
+    "methods": [
+      "add",
+      "subtract",
+      "multiply",
+      "divide",
+      "is_even",
+      "get_user_name"
+    ]
+  },
+  "expected_import": "from calculator import Calculator, User",
+  "repair_targets": [
+    {
+      "id": "T003",
+      "error_type": "NameError",
+      "test_name": "test_missing_import_or_name_error",
+      "undefined_name": "power",
+      "reason": "power fonksiyonu calculator.py içinde tanımlı değildir.",
+      "suggested_fix": "power yerine Calculator sınıfındaki mevcut bir metot kullanılmalı veya test yeniden yazılmalıdır."
+    },
+    {
+      "id": "T004",
+      "error_type": "ModuleNotFoundError",
+      "wrong_import": "from wrong_calculator import Calculator",
+      "correct_import": "from calculator import Calculator, User",
+      "reason": "wrong_calculator isimli modül bulunmamaktadır."
+    }
+  ]
+}
