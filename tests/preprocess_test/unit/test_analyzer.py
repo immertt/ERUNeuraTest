@@ -6,7 +6,11 @@ Kapsam:
   - Sınır değer testleri
   - Davranış odaklı, given/when/then + should isimlendirmesi
 """
-
+import os
+import sys
+import ast
+import pytest
+from unittest.mock import patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.preprocess.analyzer import ASTAnalyzer
