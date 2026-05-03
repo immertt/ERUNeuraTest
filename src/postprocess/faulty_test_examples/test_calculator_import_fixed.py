@@ -7,6 +7,7 @@ Amaç, işlem sonrası onarım mekanizmaları için örnekler sağlamaktır.
 
 import random
 import pytest
+from calculator import Calculator, User
 
 @pytest.fixture
 def calculator():
@@ -46,7 +47,7 @@ def test_missing_import_or_name_error(calculator):
 # ============================================================
 
 MODULE_NOT_FOUND_EXAMPLE = """
-from wrong_calculator import Calculator
+from calculator import Calculator, User
 
 def test_add_module_error():
     calculator = Calculator()
