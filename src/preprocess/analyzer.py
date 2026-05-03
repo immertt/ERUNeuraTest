@@ -124,3 +124,5 @@ class ASTAnalyzer:
                 elif isinstance(child.func, ast.Attribute):
                     calls.append(child.func.attr)
         return list(set(calls))
+
+
