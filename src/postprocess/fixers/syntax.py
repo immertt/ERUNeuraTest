@@ -1,6 +1,7 @@
 import re
+from src.postprocess.fixers.base import BaseFixer
 
-class SyntaxFixer:
+class SyntaxFixer(BaseFixer):
     """
     SyntaxError durumlarını düzeltmek için kullanılan
     kural tabanlı fixer sınıfı.

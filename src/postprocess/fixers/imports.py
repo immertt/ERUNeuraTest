@@ -2,9 +2,9 @@ from pathlib import Path #dosya yolunu platformdan bagımsız almak için
 import json #test_metadata.json dosyasını okumak için
 import ast
 from difflib import get_close_matches
+from src.postprocess.fixers.base import BaseFixer
 
-
-class ImportFixer:
+class ImportFixer(BaseFixer):
     """
     Eksik veya yanlış import ifadelerini düzeltmek için kullanılan
     kural tabanlı fixer sınıfı.
