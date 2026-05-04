@@ -7,6 +7,7 @@ Amaç, işlem sonrası onarım mekanizmaları için örnekler sağlamaktır.
 
 import random
 import pytest
+from calculator import Calculator, User
 
 @pytest.fixture
 def calculator():
@@ -17,11 +18,10 @@ def calculator():
 # T001 - SyntaxError
 # ============================================================
 
-SYNTAX_ERROR_EXAMPLE = """
+BROKEN_BLOCK_EXAMPLE = """
 def test_add_syntax_error()
     assert calculator.add(2, 3) == 5
 """
-
 
 # ============================================================
 # T002 - IndentationError
