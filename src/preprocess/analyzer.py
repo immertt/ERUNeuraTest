@@ -20,7 +20,7 @@ class ASTAnalyzer:
     """Python kaynak kodunu AST ile parse ederek metot bilgilerini çıkarır."""
     source_code: str
     module_name: str = "unknown"
-    file_path: str = "unknown"     
+    file_path: str = "unknown"
 
     def _parse_code(self):
         if len(self.source_code) >= MAX_FILE_SIZE:
@@ -65,13 +65,6 @@ class ASTAnalyzer:
 
     def _extract_method(self, node, class_name=None):
         """Tek bir AST düğümünden MethodModel oluşturur."""
-        parameters = [arg.arg for arg in getattr(node.args, "posonlyargs", [])]
-        parameters.extend([arg.arg for arg in node.args.args])
-        if node.args.vararg:
-            parameters.append(node.args.vararg.arg)
-        parameters.extend([arg.arg for arg in node.args.kwonlyargs])
-        if node.args.kwarg:
-            parameters.append(node.args.kwarg.arg)
         return MethodModel(
             name=node.name,
             signature=self._build_signature(node),
@@ -84,11 +77,26 @@ class ASTAnalyzer:
             is_async=isinstance(node, ast.AsyncFunctionDef),
             is_method=class_name is not None,
             return_type=self._safe_unparse(node.returns),
-            parameters=parameters,
+            parameters=self._extract_parameters(node.args),
             dependencies=self._find_dependencies(node),
             decorators=self._extract_decorators(node),
             docstring=ast.get_docstring(node),
         )
+
+    def _extract_parameters(self, args) -> list:
+        """
+        Tüm parametre türlerini sırasıyla toplar:
+          posonlyargs → args → vararg (*args) → kwonlyargs → kwarg (**kwargs)
+        """
+        params = []
+        params.extend(arg.arg for arg in args.posonlyargs)
+        params.extend(arg.arg for arg in args.args)
+        if args.vararg:
+            params.append(args.vararg.arg)
+        params.extend(arg.arg for arg in args.kwonlyargs)
+        if args.kwarg:
+            params.append(args.kwarg.arg)
+        return params
 
     def _build_signature(self, node):
         """Metot imzasını tip ipuçlarıyla birlikte oluşturur."""
@@ -96,15 +104,15 @@ class ASTAnalyzer:
             args_str = ast.unparse(node.args)
         except Exception:
             args_str = "..."
-        
+
         returns = ""
         if node.returns is not None:
             ret = self._safe_unparse(node.returns)
-            if ret is None:
+            if ret in (None, "", UNPARSE_ERROR):
                 returns = " -> ..."
             else:
                 returns = f" -> {ret}"
-        
+
         prefix = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
         return f"{prefix} {node.name}({args_str}){returns}"
 
@@ -115,7 +123,6 @@ class ASTAnalyzer:
             try:
                 decorators.append(ast.unparse(d))
             except Exception:
-                # Karmaşık dekoratörler çözülemezse adını al
                 if isinstance(d, ast.Name):
                     decorators.append(d.id)
                 elif isinstance(d, ast.Attribute):
@@ -135,12 +142,20 @@ class ASTAnalyzer:
         return None
 
     def _safe_unparse(self, node):
-        """AST node'u güvenli şekilde string'e çevirir."""
+        """
+        AST node'u güvenli şekilde string'e çevirir.
+
+        Dönüş değerleri:
+          None → node=None (annotasyon yazılmamış)
+          ""   → node geçerli ama unparse başarısız (sentinel — None'dan farklı)
+          str  → başarılı sonuç
+        """
         if node is None:
             return None
         try:
             return ast.unparse(node)
         except Exception:
+            return UNPARSE_ERROR
             return UNPARSE_ERROR
 
     def _find_dependencies(self, node):
@@ -149,7 +164,7 @@ class ASTAnalyzer:
 
         def visit(current):
             for child in ast.iter_child_nodes(current):
-                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
                     continue
                 if isinstance(child, ast.Call):
                     if isinstance(child.func, ast.Name):
@@ -161,4 +176,20 @@ class ASTAnalyzer:
         visit(node)
         return list(calls)
 
+        def collect(current):
+            for child in ast.iter_child_nodes(current):
+                # Nested scope → bu scope'un bağımlılıkları değil, atla
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                      ast.Lambda, ast.ClassDef)):
+                    continue
 
+                if isinstance(child, ast.Call):
+                    if isinstance(child.func, ast.Name):
+                        calls.append(child.func.id)
+                    elif isinstance(child.func, ast.Attribute):
+                        calls.append(child.func.attr)
+
+                collect(child)
+
+        collect(node)
+        return list(set(calls))

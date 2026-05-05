@@ -843,7 +843,7 @@ def _sig(source: str) -> str:
 def _sig_with_none_unparse(source: str) -> str:
     """_safe_unparse'ın None döndürdüğü durumu simüle eder (orijinal)."""
     analyzer = ASTAnalyzer(source_code=source)
-    with patch.object(analyzer, "_safe_unparse", return_value=None):
+    with patch.object(analyzer, "_safe_unparse", return_value=""):
         return analyzer._build_signature(_node(source))
 
 
@@ -1272,7 +1272,11 @@ class TestSafeUnparse:
             result = _safe_unparse(valid_node)
 
         # Yüzeysel kontrol → hata yutuluyor/gizleniyor
+<<<<<<< HEAD
         assert isinstance(result, str)  # Bu geçer; ama neden sentinel geldigi sorgulanmaz
+=======
+        assert result is ""  # Bu geçer; ama "neden None?" sorusu cevaplanmıyor
+>>>>>>> 9530d907a79a8797a72d2f954243a0816d5c287a
 
 
 # ===========================================================================
@@ -1421,9 +1425,15 @@ class TestSafeUnparseBehaviors:
         for exc in exceptions_to_test:
             with patch("ast.unparse", side_effect=exc):
                 result = _safe_unparse(node)
+<<<<<<< HEAD
             assert isinstance(result, str) and result, (
                 f"{type(exc).__name__} fırlatıldığında sentinel string bekleniyor, {result!r} döndü"
             )
+=======
+            assert (
+                result is ""
+            ), f"{type(exc).__name__} fırlatıldığında None bekleniyor, {result!r} döndü"
+>>>>>>> 9530d907a79a8797a72d2f954243a0816d5c287a
 
     def test_given_non_ast_object_when_unparse_raises_should_return_none(self):
         """
@@ -1610,6 +1620,7 @@ class TestParseCode:
         assert result is not None
         assert isinstance(result, ast.AST)
 
+<<<<<<< HEAD
     # ── Görev 3b ────────────────────────────────────────────────────────────
 
     def test_given_source_at_exact_max_size_invalid_state_not_visible_when_code_is_valid(self):
@@ -1637,6 +1648,8 @@ class TestParseCode:
         assert result is None
 
 
+=======
+>>>>>>> 9530d907a79a8797a72d2f954243a0816d5c287a
 # ===========================================================================
 # KUSUR 2 — Dar exception tuple (MemoryError yakalanmıyor)
 # ===========================================================================
@@ -1652,10 +1665,16 @@ class TestParseCodeExceptionHandling:
                Duzeltilmis davranis: MemoryError yakalanir
         """
         source = "def foo(): pass"
-
         with patch("ast.parse", side_effect=MemoryError("Out of memory")):
             result = _parse(source)
         assert result is None
+
+<<<<<<< HEAD
+        with patch("ast.parse", side_effect=MemoryError("Out of memory")):
+            result = _parse(source)
+        assert result is None
+=======
+>>>>>>> 9530d907a79a8797a72d2f954243a0816d5c287a
 
     def test_given_syntax_error_when_parsed_should_return_none(self):
         """

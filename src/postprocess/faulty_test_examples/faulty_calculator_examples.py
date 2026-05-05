@@ -18,11 +18,10 @@ def calculator():
 # T001 - SyntaxError
 # ============================================================
 
-SYNTAX_ERROR_EXAMPLE = """
+BROKEN_BLOCK_EXAMPLE = """
 def test_add_syntax_error()
     assert calculator.add(2, 3) == 5
 """
-
 
 # ============================================================
 # T002 - IndentationError
@@ -47,7 +46,7 @@ def test_missing_import_or_name_error(calculator):
 # ============================================================
 
 MODULE_NOT_FOUND_EXAMPLE = """
-from calculator import Calculator, User
+from wrong_calculator import Calculator
 
 def test_add_module_error():
     calculator = Calculator()
