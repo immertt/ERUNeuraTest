@@ -38,7 +38,7 @@ class ComplexityCalculator:
             return ComplexityMetrics(
                 cyclomatic_complexity=cc_val,
                 cognitive_complexity=cog_val,
-                risk_level=self._get_risk_label(total),
+                risk_levels=self._get_risk_label(total),
             )
         except Exception:
             return ComplexityMetrics()
@@ -46,22 +46,29 @@ class ComplexityCalculator:
     def _calc_cyclomatic(self, code_text: str) -> int:
         """radon ile cyclomatic complexity hesaplar."""
         results = cc_visit(code_text)
-        return results[0].complexity if results else 1
+        if not results:
+            return 1
+        return max(r.complexity for r in results)
 
     def _calc_cognitive(self, code_text: str) -> int:
         """cognitive_complexity kütüphanesi ile cognitive complexity hesaplar."""
         tree = ast.parse(code_text)
-        # İlk fonksiyon düğümünü bul
-        for node in ast.walk(tree):
+        values = []
+        for node in tree.body:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                return get_cognitive_complexity(node)
-        return 0
+                values.append(get_cognitive_complexity(node))
+        return max(values) if values else 0
 
     def _normalize_code(self, source_code) -> str:
         """String veya nesne girdisini string'e normalize eder."""
+        if source_code is None:
+            return ""
         if isinstance(source_code, str):
             return source_code
-        return getattr(source_code, 'body', str(source_code))
+        if hasattr(source_code, "body"):
+            body = getattr(source_code, "body")
+            return "" if body is None else body
+        return str(source_code)
 
     def _get_risk_label(self, score: int) -> str:
         """Toplam skora göre risk seviyesi döner."""

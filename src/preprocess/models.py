@@ -14,9 +14,17 @@ from pathlib import Path
 @dataclass
 class ComplexityMetrics:
     """Bir metodun cyclomatic/cognitive complexity ve risk seviyesini tutar."""
-    cyclomatic_complexity: int = 1
+    cyclomatic_complexity: int = 0
     cognitive_complexity: int = 0
     risk_levels: Literal["LOW", "MODERATE", "HIGH", "VERY_HIGH"] = "LOW"
+
+    @property
+    def risk_level(self) -> str:
+        return self.risk_levels
+
+    @risk_level.setter
+    def risk_level(self, value: str) -> None:
+        self.risk_levels = value
 
     def to_dict(self) -> Dict:
         return {
@@ -64,12 +72,14 @@ class MethodModel:
     def fqn(self) -> Optional[str]:
         """Fully Qualified Name: module.ClassName veya None."""
         if self.class_name:
-            return f"{self.module_name}.{self.class_name}"
+            return f"{self.module_name}.{self.class_name}.{self.name}"
         return None
 
     @property
     def line_count(self) -> int:
         """Metodun satır sayısını hesaplar."""
+        if self.end_line < self.start_line:
+            return 0
         return self.end_line - self.start_line + 1
 
     def to_dict(self) -> Dict:
