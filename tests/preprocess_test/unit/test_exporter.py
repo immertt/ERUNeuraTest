@@ -207,15 +207,11 @@ class TestInit:
         """
         GIVEN: output_base_dir="" → DEFAULT_OUTPUT kullanıldı (infection)
         WHEN : Yalnızca output_base_dir'in None olmadığı kontrol edilir
-        THEN : Test geçer — yanlış path seçildiği görünmez
-
-        [GÖREV 4b — infection var, failure yok]
+        THEN : ValueError fırlatilir (duzeltilmis davranis)
         """
         with patch.object(Path, "mkdir"):
-            exporter = JSONExporter(output_base_dir="")
-
-        # Yüzeysel kontrol → infection gizleniyor
-        assert exporter.output_base_dir is not None  # Her zaman geçer
+            with pytest.raises(ValueError):
+                JSONExporter(output_base_dir="")
 
 
 # ===========================================================================

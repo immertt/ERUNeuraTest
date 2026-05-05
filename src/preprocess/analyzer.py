@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from .models import MethodModel
 
 MAX_FILE_SIZE = 500_000
+UNPARSE_ERROR = "<unparse_error>"
 
 
 @dataclass
@@ -22,7 +23,6 @@ class ASTAnalyzer:
     file_path: str = "unknown"
 
     def _parse_code(self):
-        # > → >= : tam 500_000 karakterlik dosya da atlanır
         if len(self.source_code) >= MAX_FILE_SIZE:
             print(f"Atlandı (çok büyük): {self.file_path}")
             return None
@@ -30,8 +30,7 @@ class ASTAnalyzer:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", SyntaxWarning)
                 return ast.parse(self.source_code)
-        # Dar tuple → Exception: MemoryError gibi beklenmedik hatalar da yakalanır
-        except Exception as e:
+        except (SyntaxError, ValueError, RecursionError, MemoryError) as e:
             print(f"Parse hatası: {self.file_path} - {e}")
             return None
 
@@ -47,24 +46,22 @@ class ASTAnalyzer:
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     methods.append(self._extract_method(node))
                 elif isinstance(node, ast.ClassDef):
-                    # Nested class desteği: recursive toplama
-                    self._collect_class_methods(node, methods)
+                    methods.extend(self._extract_class_methods(node))
             except Exception as e:
                 print(f"Uyarı: {self.file_path} içinde metot çıkarılamadı - {e}")
                 continue
         return methods
 
-    def _collect_class_methods(self, class_node, methods):
-        """ClassDef içindeki metotları ve nested class'ları recursive toplar."""
+    def _extract_class_methods(self, class_node, parent_name=None):
+        """ClassDef icindeki metotlari (nested class dahil) toplar."""
+        class_name = class_node.name if not parent_name else f"{parent_name}.{class_node.name}"
+        methods = []
         for item in class_node.body:
-            try:
-                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    methods.append(self._extract_method(item, class_node.name))
-                elif isinstance(item, ast.ClassDef):
-                    self._collect_class_methods(item, methods)
-            except Exception as e:
-                print(f"Uyarı: {self.file_path} içinde metot çıkarılamadı - {e}")
-                continue
+            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                methods.append(self._extract_method(item, class_name))
+            elif isinstance(item, ast.ClassDef):
+                methods.extend(self._extract_class_methods(item, class_name))
+        return methods
 
     def _extract_method(self, node, class_name=None):
         """Tek bir AST düğümünden MethodModel oluşturur."""
@@ -80,7 +77,6 @@ class ASTAnalyzer:
             is_async=isinstance(node, ast.AsyncFunctionDef),
             is_method=class_name is not None,
             return_type=self._safe_unparse(node.returns),
-            # Tüm parametre türleri: positional-only, normal, *args, keyword-only, **kwargs
             parameters=self._extract_parameters(node.args),
             dependencies=self._find_dependencies(node),
             decorators=self._extract_decorators(node),
@@ -110,15 +106,12 @@ class ASTAnalyzer:
             args_str = "..."
 
         returns = ""
-        if node.returns:
+        if node.returns is not None:
             ret = self._safe_unparse(node.returns)
-            # ret=None/"" → _safe_unparse başarısız, return tipi var ama okunamadı → "-> ..."
-            # ret="None"  → geçerli Python return tipi → "-> None"
-            # ret="int"   → başarılı → "-> int"
-            if ret:
-                returns = f" -> {ret}"
-            else:
+            if ret in (None, "", UNPARSE_ERROR):
                 returns = " -> ..."
+            else:
+                returns = f" -> {ret}"
 
         prefix = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
         return f"{prefix} {node.name}({args_str}){returns}"
@@ -133,22 +126,20 @@ class ASTAnalyzer:
                 if isinstance(d, ast.Name):
                     decorators.append(d.id)
                 elif isinstance(d, ast.Attribute):
-                    # d.attr → tam nitelikli ad: "module.decorator"
-                    decorators.append(self._unparse_attribute(d))
+                    full_name = self._attribute_to_str(d)
+                    decorators.append(full_name or d.attr)
                 else:
                     decorators.append("unknown_decorator")
         return decorators
 
-    def _unparse_attribute(self, node) -> str:
-        """ast.Attribute node'unu 'a.b.c' formatına dönüştürür."""
-        parts = []
-        current = node
-        while isinstance(current, ast.Attribute):
-            parts.append(current.attr)
-            current = current.value
-        if isinstance(current, ast.Name):
-            parts.append(current.id)
-        return ".".join(reversed(parts))
+    def _attribute_to_str(self, node):
+        """ast.Attribute zincirini nokta ile birlestirir."""
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            base = self._attribute_to_str(node.value)
+            return f"{base}.{node.attr}" if base else node.attr
+        return None
 
     def _safe_unparse(self, node):
         """
@@ -164,15 +155,26 @@ class ASTAnalyzer:
         try:
             return ast.unparse(node)
         except Exception:
-            return ""
+            return UNPARSE_ERROR
+            return UNPARSE_ERROR
 
     def _find_dependencies(self, node):
-        """
-        Metodun doğrudan gövdesindeki fonksiyon çağrılarını bulur.
-        Nested fonksiyon, lambda ve class tanımlarının içine inmez;
-        yalnızca mevcut scope'un bağımlılıklarını raporlar.
-        """
-        calls = []
+        """Metot içinde çağrılan fonksiyon adlarını bulur (mocking için)."""
+        calls = set()
+
+        def visit(current):
+            for child in ast.iter_child_nodes(current):
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+                    continue
+                if isinstance(child, ast.Call):
+                    if isinstance(child.func, ast.Name):
+                        calls.add(child.func.id)
+                    elif isinstance(child.func, ast.Attribute):
+                        calls.add(child.func.attr)
+                visit(child)
+
+        visit(node)
+        return list(calls)
 
         def collect(current):
             for child in ast.iter_child_nodes(current):

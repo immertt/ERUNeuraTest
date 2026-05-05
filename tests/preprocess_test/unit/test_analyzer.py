@@ -214,22 +214,22 @@ class TestGetMethodsInfoBoundaryValues:
         result = make_analyzer(oversized_source).get_methods_info()
         assert result == []
 
-    def test_given_source_at_exactly_max_file_size_when_analyzed_should_attempt_parse(self):
+    def test_given_source_at_exactly_max_file_size_when_analyzed_should_skip(self):
         """
         GIVEN: Tam olarak MAX_FILE_SIZE (500_000) karakterlik kaynak kodu
         WHEN : get_methods_info çağrılır
-        THEN : Atlanmaz (> kontrolü, = dahil değil); parse denenir
+        THEN : Atlanır (>= kontrolü); parse edilmez
 
-        Sınır: len > 500_000 → atlanır; len == 500_000 → parse edilir
+        Sınır: len >= 500_000 → atlanır
         """
         # Tam 500_000 karakter, geçerli Python
         padding = "# " + "x" * 497 + "\n"  # 500 char/satır
         source = padding * 1000  # 500_000 char
         assert len(source) == 500_000
 
-        # Parse edilmeli (boş bile olsa exception fırlatmamalı)
+        # Atlanmali
         result = make_analyzer(source).get_methods_info()
-        assert isinstance(result, list)
+        assert result == []
 
     def test_given_single_function_when_analyzed_should_return_exactly_one_method(self):
         """
@@ -1255,11 +1255,11 @@ class TestSafeUnparse:
         result = _safe_unparse(None)
         assert result is None
 
-    def test_given_unparse_error_when_caller_only_checks_none_invalid_state_is_hidden(self):
+    def test_given_unparse_error_when_caller_only_checks_type_invalid_state_is_hidden(self):
         """
         GIVEN: ast.unparse exception fırlatıyor (yanlış durum (invalid state): geçerli node yok gibi görünüyor)
-        WHEN : Çağıran yalnızca "None döndü mü?" kontrolü yapıyor
-        THEN : Kontrol None'ı doğrular → test geçer, ama yanlış durum (invalid state) gizlenir
+        WHEN : Çağıran yalnızca "str döndü mü?" kontrolü yapıyor
+        THEN : Kontrol geçer — ama sentinel degerin anlamı sorgulanmaz, yanlış durum gizlenir
 
         [yanlış durum (invalid state) var (yanlış semantik), hata (error) görünmez]
 
@@ -1272,7 +1272,11 @@ class TestSafeUnparse:
             result = _safe_unparse(valid_node)
 
         # Yüzeysel kontrol → hata yutuluyor/gizleniyor
+<<<<<<< HEAD
+        assert isinstance(result, str)  # Bu geçer; ama neden sentinel geldigi sorgulanmaz
+=======
         assert result is ""  # Bu geçer; ama "neden None?" sorusu cevaplanmıyor
+>>>>>>> 9530d907a79a8797a72d2f954243a0816d5c287a
 
 
 # ===========================================================================
@@ -1403,11 +1407,11 @@ class TestSafeUnparseBehaviors:
     # Exception güvenliği — asla crash olmamalı
     # -----------------------------------------------------------------------
 
-    def test_given_any_exception_from_unparse_should_return_none_not_raise(self):
+    def test_given_any_exception_from_unparse_should_return_sentinel_not_raise(self):
         """
         GIVEN: ast.unparse her türlü exception fırlatıyor
         WHEN : _safe_unparse çağrılır
-        THEN : Exception dışarıya sızmaz; None döner
+        THEN : Exception dışarıya sızmaz; sentinel string döner
 
         _safe_unparse'ın temel güvenlik garantisi: ne olursa olsun crash etmez.
         """
@@ -1421,9 +1425,15 @@ class TestSafeUnparseBehaviors:
         for exc in exceptions_to_test:
             with patch("ast.unparse", side_effect=exc):
                 result = _safe_unparse(node)
+<<<<<<< HEAD
+            assert isinstance(result, str) and result, (
+                f"{type(exc).__name__} fırlatıldığında sentinel string bekleniyor, {result!r} döndü"
+            )
+=======
             assert (
                 result is ""
             ), f"{type(exc).__name__} fırlatıldığında None bekleniyor, {result!r} döndü"
+>>>>>>> 9530d907a79a8797a72d2f954243a0816d5c287a
 
     def test_given_non_ast_object_when_unparse_raises_should_return_none(self):
         """
@@ -1610,6 +1620,36 @@ class TestParseCode:
         assert result is not None
         assert isinstance(result, ast.AST)
 
+<<<<<<< HEAD
+    # ── Görev 3b ────────────────────────────────────────────────────────────
+
+    def test_given_source_at_exact_max_size_invalid_state_not_visible_when_code_is_valid(self):
+        """
+        GIVEN: Tam 500_000 karakterlik, geçerli Python kodu
+        WHEN : _parse_code çağrılır
+        THEN : Kaynak atlanır ve None döner (duzeltilmis davranis)
+        """
+        source = _source_of_len(MAX_FILE_SIZE)
+        result = _parse(source)
+
+        assert result is None
+
+    # ── Görev 4b ────────────────────────────────────────────────────────────
+
+    def test_given_source_at_exact_max_size_when_caller_only_checks_result_not_none(self):
+        """
+        GIVEN: Tam 500_000 karakterlik kaynak (yanlış durum (invalid state): atlanmadan parse edildi)
+        WHEN : Test sadece 'result is not None' kontrolü yapıyor
+        THEN : Duzeltilmis davranista None doner
+        """
+        source = _source_of_len(MAX_FILE_SIZE)
+        result = _parse(source)
+
+        assert result is None
+
+
+=======
+>>>>>>> 9530d907a79a8797a72d2f954243a0816d5c287a
 # ===========================================================================
 # KUSUR 2 — Dar exception tuple (MemoryError yakalanmıyor)
 # ===========================================================================
@@ -1622,15 +1662,19 @@ class TestParseCodeExceptionHandling:
         GIVEN: ast.parse'ın MemoryError fırlattığı koşul
         WHEN : _parse_code çağrılır
         THEN : Exception dışarı sızmaz; None dönmeli
-               Orijinal kod MemoryError'ı yakalamıyor → uygulama çöker → BAŞARISIZ
-
-        [Bilinen Hata Kontrolü]
+               Duzeltilmis davranis: MemoryError yakalanir
         """
         source = "def foo(): pass"
         with patch("ast.parse", side_effect=MemoryError("Out of memory")):
             result = _parse(source)
         assert result is None
 
+<<<<<<< HEAD
+        with patch("ast.parse", side_effect=MemoryError("Out of memory")):
+            result = _parse(source)
+        assert result is None
+=======
+>>>>>>> 9530d907a79a8797a72d2f954243a0816d5c287a
 
     def test_given_syntax_error_when_parsed_should_return_none(self):
         """

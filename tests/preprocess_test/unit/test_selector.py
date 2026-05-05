@@ -160,14 +160,11 @@ class TestInit:
         """
         GIVEN: limit=-1 ile selector oluşturuldu
         WHEN : select_best_methods çağrılmadan sadece self.limit okunuyor
-        THEN : self.limit=-1 görünür ama slice henüz gerçekleşmedi, infection yok
-
-        [GÖREV 3b — kusur (yanlış atama) çalıştı, ama slice infection'ı henüz yok]
+        THEN : self.limit=0 olarak normalize edilir (duzeltilmis davranis)
         """
         selector = MethodSelector(limit=-1)
 
-        # Kusur: limit=-1 atandı. Ama select çağrılmadı → yanlış sonuç üretilmedi.
-        assert selector.limit == -1  # Atama gerçekleşti, ancak henüz zararlı değil
+        assert selector.limit == 0
 
     # -----------------------------------------------------------------------
     # GÖREV 4b — Infection var ama failure gözlemlenmez

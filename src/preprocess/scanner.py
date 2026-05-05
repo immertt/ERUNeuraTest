@@ -22,7 +22,12 @@ class ProjectScanner:
     """Benchmark dizinini tarar ve preprocess pipeline'ını çalıştırır."""
 
     def __init__(self, benchmark_dir=None):
-        self.benchmark_dir = Path(benchmark_dir) if benchmark_dir else DEFAULT_BENCHMARK
+        if benchmark_dir is None:
+            self.benchmark_dir = DEFAULT_BENCHMARK
+        elif isinstance(benchmark_dir, (str, Path)):
+            self.benchmark_dir = Path(benchmark_dir)
+        else:
+            raise ValueError("benchmark_dir gecersiz tip")
         self.complexity_calc = ComplexityCalculator()
         self.selector = MethodSelector(limit=50)
         self.exporter = JSONExporter()
@@ -35,11 +40,19 @@ class ProjectScanner:
             print(f"Hata: {self.benchmark_dir} klasörü bulunamadı!")
             return
 
-        projects = [d for d in self.benchmark_dir.iterdir() if d.is_dir()]
+        try:
+            projects = [d for d in self.benchmark_dir.iterdir() if d.is_dir()]
+        except PermissionError as exc:
+            print(f"Hata: {self.benchmark_dir} okunamadi - {exc}")
+            return
         print(f"Bulunan projeler: {[p.name for p in projects]}")
 
         for project_path in projects:
-            self._process_project(project_path)
+            try:
+                self._process_project(project_path)
+            except Exception as exc:
+                print(f"Hata: {project_path} islenemedi - {exc}")
+                continue
 
     def _process_project(self, project_path: Path):
         """Tek bir projeyi analiz eder, seçer ve dışa aktarır."""
@@ -52,11 +65,33 @@ class ProjectScanner:
             print(f"Uyarı: {project_name} içinde metot bulunamadı.")
             return
 
+        processed_methods = []
         for method in methods:
-            method.complexity = self.complexity_calc.calculate(method.body)
+            try:
+                method.complexity = self.complexity_calc.calculate(method.body)
+                processed_methods.append(method)
+            except Exception as exc:
+                print(f"Uyarı: {project_name} icin complexity hesaplanamadi - {exc}")
+                continue
 
-        selected = self.selector.select_best_methods(methods)
-        self.exporter.export(selected, project_name)
+        if not processed_methods:
+            print(f"Uyarı: {project_name} icin gecerli metot bulunamadi.")
+            return
+
+        try:
+            selected = self.selector.select_best_methods(processed_methods)
+        except Exception as exc:
+            print(f"Hata: {project_name} secim hatasi - {exc}")
+            return
+
+        if not selected:
+            print(f"Uyarı: {project_name} icin secilecek metot bulunamadi.")
+            return
+
+        try:
+            self.exporter.export(selected, project_name)
+        except Exception as exc:
+            print(f"Hata: {project_name} export hatasi - {exc}")
 
     def _scan_files(self, project_path: Path) -> List[MethodModel]:
         """Projedeki tüm .py dosyalarını tarar ve metotları çıkarır."""
@@ -64,6 +99,8 @@ class ProjectScanner:
 
         for file_path in project_path.rglob("*.py"):
             try:
+                if "__pycache__" in file_path.parts:
+                    continue
                 code = file_path.read_text(encoding="utf-8")
                 analyzer = ASTAnalyzer(
                     source_code=code,
@@ -71,6 +108,9 @@ class ProjectScanner:
                     file_path=str(file_path),
                 )
                 methods.extend(analyzer.get_methods_info())
+            except UnicodeDecodeError as e:
+                print(f"Hata: {file_path} encoding okunamadi - {e}")
+                continue
             except Exception as e:
                 print(f"Hata: {file_path} okunamadı - {e}")
                 continue
