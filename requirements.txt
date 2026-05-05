@@ -1,7 +1,7 @@
 # Unit Test Automation Dependencies
 groq>=0.37.0
 datasets>=2.16.0
-python-dotenv==1.0.0
+python-dotenv==1.2.2
 numpy>=1.26.0
 pytest==9.0.3
 huggingface-hub>=0.19.4
