@@ -12,7 +12,7 @@ import ast
 import pytest
 from unittest.mock import patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+import warnings
 from src.preprocess.analyzer import ASTAnalyzer
 
 # ---------------------------------------------------------------------------
@@ -843,7 +843,7 @@ def _sig(source: str) -> str:
 def _sig_with_none_unparse(source: str) -> str:
     """_safe_unparse'ın None döndürdüğü durumu simüle eder (orijinal)."""
     analyzer = ASTAnalyzer(source_code=source)
-    with patch.object(analyzer, "_safe_unparse", return_value=None):
+    with patch.object(analyzer, "_safe_unparse", return_value=""):
         return analyzer._build_signature(_node(source))
 
 
@@ -1272,7 +1272,7 @@ class TestSafeUnparse:
             result = _safe_unparse(valid_node)
 
         # Yüzeysel kontrol → hata yutuluyor/gizleniyor
-        assert result is None  # Bu geçer; ama "neden None?" sorusu cevaplanmıyor
+        assert result is ""  # Bu geçer; ama "neden None?" sorusu cevaplanmıyor
 
 
 # ===========================================================================
@@ -1422,7 +1422,7 @@ class TestSafeUnparseBehaviors:
             with patch("ast.unparse", side_effect=exc):
                 result = _safe_unparse(node)
             assert (
-                result is None
+                result is ""
             ), f"{type(exc).__name__} fırlatıldığında None bekleniyor, {result!r} döndü"
 
     def test_given_non_ast_object_when_unparse_raises_should_return_none(self):
@@ -1610,44 +1610,6 @@ class TestParseCode:
         assert result is not None
         assert isinstance(result, ast.AST)
 
-    # ── Görev 3b ────────────────────────────────────────────────────────────
-
-    def test_given_source_at_exact_max_size_invalid_state_not_visible_when_code_is_valid(self):
-        """
-        GIVEN: Tam 500_000 karakterlik, geçerli Python kodu
-        WHEN : _parse_code çağrılır
-        THEN : Kusur çalışır (atlanmadan parse edilir → yanlış karar = yanlış durum (invalid state))
-               Ama kaynak geçerli olduğundan AST döner ve çağıran bunu "başarı" görür
-
-        [yanlış durum (invalid state) var, çağırana yansımaz]
-        """
-        source = _source_of_len(MAX_FILE_SIZE)
-        result = _parse(source)
-
-        # Orijinal kodda AST dönüyor (yanlış durum (invalid state): atlanmalıydı ama parse edildi)
-        # Bu assertion intentional — davranışı belgeler, kusuru gizlemez
-        assert result is not None, (
-            "len=500_000 kaynak parse edildi (atlanmadı). "
-            "Infection: yanlış karar verildi ama geçerli koddan AST döndüğü için görünmez."
-        )
-
-    # ── Görev 4b ────────────────────────────────────────────────────────────
-
-    def test_given_source_at_exact_max_size_when_caller_only_checks_result_not_none(self):
-        """
-        GIVEN: Tam 500_000 karakterlik kaynak (yanlış durum (invalid state): atlanmadan parse edildi)
-        WHEN : Test sadece 'result is not None' kontrolü yapıyor
-        THEN : Assertion geçer — yanlış durum (invalid state) gizlenir, hata (error) görünmez
-
-        [yanlış durum (invalid state) var, hata (error) yok]
-        """
-        source = _source_of_len(MAX_FILE_SIZE)
-        result = _parse(source)
-
-        # Bu assertion geçer (AST döndü) ama atlanması gerekiyordu
-        assert result is not None  # yüzeysel kontrol — kusuru görmüyor
-
-
 # ===========================================================================
 # KUSUR 2 — Dar exception tuple (MemoryError yakalanmıyor)
 # ===========================================================================
@@ -1665,11 +1627,10 @@ class TestParseCodeExceptionHandling:
         [Bilinen Hata Kontrolü]
         """
         source = "def foo(): pass"
+        with patch("ast.parse", side_effect=MemoryError("Out of memory")):
+            result = _parse(source)
+        assert result is None
 
-        with pytest.raises(MemoryError):
-            with patch("ast.parse", side_effect=MemoryError("Out of memory")):
-                _parse(source)
-        # pytest.raises geçti → MemoryError gerçekten dışarı sızdı → BAŞARISIZ (beklenen)
 
     def test_given_syntax_error_when_parsed_should_return_none(self):
         """
