@@ -1,5 +1,9 @@
-from dataclasses import dataclass, field
 import ast
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
@@ -15,6 +19,23 @@ class ValidationResult:
     is_valid: bool
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+
+@dataclass
+class TestResult:
+    """
+    Pytest çalıştırma sonucunu temsil eder.
+
+    Attributes:
+        passed: Testlerin başarılı olup olmadığını belirtir.
+        failed: Testlerin başarısız olup olmadığını belirtir.
+        errors: Çalıştırma sırasında oluşan hata mesajları.
+        output: Pytest çıktısı.
+    """
+    passed: bool
+    failed: bool
+    errors: list[str] = field(default_factory=list)
+    output: str = ""
+
 
 class CodeValidator:
     """
@@ -104,3 +125,84 @@ class CodeValidator:
             errors=errors,
             warnings=warnings
         )
+    
+    def run_test(self, code: str, context_path: str, timeout: int = 10) -> TestResult:
+        """
+        Verilen test kodunu geçici bir dosyaya yazar ve pytest ile çalıştırır.
+
+        Args:
+            code: Çalıştırılacak test kodu.
+            context_path: Testin çalışacağı dizin.
+            timeout: Pytest çalıştırması için saniye cinsinden zaman sınırı.
+
+        Returns:
+            Pytest çalışma sonucunu içeren TestResult nesnesi.
+        """
+        context_dir = Path(context_path)
+
+        if context_dir.is_file():
+            context_dir = context_dir.parent
+
+        temp_file_path = None
+
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                suffix="_generated_test.py",
+                prefix="test_",
+                dir=context_dir,
+                delete=False,
+                encoding="utf-8",
+            ) as temp_file:
+                temp_file.write(code)
+                temp_file_path = Path(temp_file.name)
+
+            completed_process = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    str(temp_file_path),
+                    "-q",
+                ],
+                cwd=str(context_dir),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+
+            output = completed_process.stdout + completed_process.stderr
+
+            if completed_process.returncode == 0:
+                return TestResult(
+                    passed=True,
+                    failed=False,
+                    output=output,
+                )
+
+            return TestResult(
+                passed=False,
+                failed=True,
+                errors=[output],
+                output=output,
+            )
+
+        except subprocess.TimeoutExpired as error:
+            output = ""
+
+            if error.stdout:
+                output += error.stdout
+
+            if error.stderr:
+                output += error.stderr
+
+            return TestResult(
+                passed=False,
+                failed=True,
+                errors=[f"Pytest timeout after {timeout} seconds."],
+                output=output,
+            )
+
+        finally:
+            if temp_file_path and temp_file_path.exists():
+                temp_file_path.unlink()

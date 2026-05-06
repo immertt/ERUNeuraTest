@@ -89,3 +89,54 @@ def test_example(): #test_ ile başlıyor ama içinde as.. yok, p...rai.. yok
         assert len(result.errors) > 0
         assert "SyntaxError at line" in result.errors[0]
 
+    def test_run_test_returns_passed_for_valid_test_code(self, tmp_path):
+        validator = CodeValidator()
+        code = """
+def test_example():
+    assert 1 + 1 == 2
+"""
+        result = validator.run_test(code, str(tmp_path))
+
+        assert result.passed is True
+        assert result.failed is False
+        assert result.errors == []
+        assert "passed" in result.output
+
+    def test_run_test_returns_failed_for_failing_test_code(self, tmp_path):
+        validator = CodeValidator()
+        code = """
+def test_example():
+    assert 1 + 1 == 3
+"""
+        result = validator.run_test(code, str(tmp_path))
+
+        assert result.passed is False
+        assert result.failed is True
+        assert len(result.errors) > 0
+        assert "failed" in result.output
+
+
+    def test_run_test_returns_failed_when_timeout_expires(self, tmp_path):
+        validator = CodeValidator()
+        code = """
+def test_timeout():
+    while True:
+        pass
+"""
+        result = validator.run_test(code, str(tmp_path), timeout=1)
+
+        assert result.passed is False
+        assert result.failed is True
+        assert any("timeout" in error.lower() for error in result.errors)
+
+    def test_run_test_removes_temporary_test_file(self, tmp_path):
+        validator = CodeValidator()
+        code = """
+def test_example():
+    assert True
+"""
+        validator.run_test(code, str(tmp_path))
+
+        generated_files = list(tmp_path.glob("test_*_generated_test.py"))
+
+        assert generated_files == []
