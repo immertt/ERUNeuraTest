@@ -1,4 +1,4 @@
-from postprocess.validator import CodeValidator
+from src.postprocess.validator import CodeValidator
 
 class TestCodeValidator:
     #hata var, hata dedi-> TruePositive
@@ -64,7 +64,7 @@ def example():      #fonksiyon var ama test_ ile başlamıyor
         result = validator.validate_rule_based(code)
 
         assert result.is_valid is True #Hata yok warning var
-        assert any("No test function found" in warning for warning in result.warnings)
+        assert any("Test fonksiyonu bulunamadı." in warning for warning in result.warnings)
 
     #test_ ile başlayan fonk. var ama test mantıgı var mı ?
     def test_validate_rule_based_warns_when_no_assertion_exists(self):
@@ -76,7 +76,7 @@ def test_example(): #test_ ile başlıyor ama içinde as.. yok, p...rai.. yok
         result = validator.validate_rule_based(code)
         
         assert result.is_valid is True
-        assert any("No assertion pattern found" in warning for warning in result.warnings)
+        assert any("Assertion ifadesi bulunamadı." in warning for warning in result.warnings)
 
     #ana validate() fonk. akışı dogru mu ? syntax check, merge, erken return
     def test_validate_returns_combined_result_for_invalid_syntax(self):
