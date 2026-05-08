@@ -17,6 +17,11 @@ class IndentationFixer:
         self.indent_size = indent_size
         self.max_iterations = max_iterations
 
+
+    # TODO: fix() metodu şu an str döndürüyor. İleride tüm fixer'lar
+    # FixResult dataclass'ına geçirilecek. (base.py'e eklenecek)
+    # FixResult alanları: code, success, needs_llm, reason
+    # Mixed tab+space durumu tespit edildiğinde needs_llm=True döndürülecek.
     def fix(self, code: str) -> str:
         """
         Verilen Python kodundaki girinti hatalarını düzeltmeye çalışır.
